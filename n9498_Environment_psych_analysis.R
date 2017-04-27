@@ -301,14 +301,15 @@ t$group1 <- c("ADHD","Agoraphobia","Conduct","GAD","MDD","OCD","ODD","Psychosis"
 png("~/envsMeduAnalysis/n9498Analysis/diagnosis_environment_regressed.png", res=400, width=13.4, height=6.7, units="in")
 
 ggplot(t, aes(x=group1, y=mean)) + 
-  geom_bar(position=position_dodge(), stat="identity", fill="gray75", col="black") +
+  geom_bar(position=position_dodge(), stat="identity", aes(fill=mean), col="black") +
   geom_errorbar(aes(ymin=mean-2*se, ymax=mean+2*se), width=.1, position=position_dodge(.9)) + 
   ylab("Neighborhood-level SES Score") +
   xlab("Diagnosis") + 
   theme_classic() +
   theme(text = element_text(size=24), 
         axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x=element_blank(), plot.title = element_text(hjust = 0.5)) + geom_hline(yintercept=0)
+        axis.title.x=element_blank(), plot.title = element_text(hjust = 0.5)) + geom_hline(yintercept=0) +
+  scale_fill_gradient(low = "skyblue", high = "skyblue4") + guides(fill=FALSE)
 
 dev.off()
 
