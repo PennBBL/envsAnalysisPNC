@@ -1,8 +1,24 @@
+##############################################################################
+################                                               ###############
+################             Env Analysis Figure 1             ###############
+################           Angel Garcia de la Garza            ###############
+################              angelgar@upenn.edu               ###############
+################                 05/10/2016                    ###############
+##############################################################################
+
+
+
+
+##############################################################################
+################     Load libraries and data                   ###############
+##############################################################################
+
 library(parallel)
 library(mgcv)
 library(e1071)
 library(ggplot2)
 
+#load Data
 demo <- read.csv("/data/joy/BBL/studies/pnc/n9498_dataFreeze//demographics//n9498_demographics_go1_20161212.csv")
 envs <- read.csv("/data/joy/BBL/studies/pnc/n9498_dataFreeze//environment//n9498_go1_environment_factor_scores_tymoore_20150909.csv")
 tracker <- read.csv("/data/joy/BBL/studies/pnc/n9498_dataFreeze//demographics//n9498_demographics_go1_20161212.csv")
@@ -11,19 +27,25 @@ clinical <- read.csv("/data/joy/BBL/studies/pnc/n9498_dataFreeze//clinical//n949
 health <- read.csv("/data/joy/BBL/studies/pnc/n9498_dataFreeze/health/n9498_health_20170405.csv")
 health <- health[which(health$medicalrating < 3),]
 
+#merge Data
 demo <- merge(tracker, demo, by=c("bblid"))
 demo <- merge(demo, envs, by=c("bblid"))
 demo <- merge(demo, clinical, by=c("bblid"))
 demo <- merge(demo, health, by="bblid")
 
-
+#declare number of cores (leave this to one)
 cores <- 1
 
-
+#Clean Data
 demo$sex <- as.factor(demo$sex)
 demo$race2[which(demo$race2 == 3)] <- 2
 demo$race2 <- as.factor(demo$race2)
 
+
+
+##############################################################################
+################     Function to analyze data                  ###############
+##############################################################################
 
 
 FunctionAnalyze <- function(model, Path, cores) {
@@ -75,23 +97,34 @@ FunctionAnalyze <- function(model, Path, cores) {
   return(output)
 }
 
+##############################################################################
+################  Analyze Bifactor and CorrTraits for figures  ###############
+##############################################################################
+
+
+
+#Declare model
 model <- "~ s(ageAtClinicalAssess1, k=4) + sex + race2"
 
 
+#Analyze bifactor scores 
 path <- "/data/joy/BBL/studies/pnc/n9498_dataFreeze//clinical//n9498_goassess_itemwise_bifactor_scores_20161219.csv"
 outputbifactor <- FunctionAnalyze(model, path, cores)
 
 path <- "/data/joy/BBL/studies/pnc/n9498_dataFreeze//clinical//n9498_goassess_itemwise_corrtraits_scores_20161219.csv"
 outputcorrtraits <- FunctionAnalyze(model, path, cores)
 
-
+#Clean Names of output statistics (parameters from model)
 outputbifactor$names <- c("Anxious-Misery","Psychosis","Behavioral","Fear","Overall Psychopathology")
 
 outputbifactor$names <- factor(outputbifactor$names, levels = c("Overall Psychopathology","Anxious-Misery","Psychosis","Behavioral","Fear"))
 
 
-png("~/envsMeduAnalysis/n9498Analysis/psycho_envs.png", res=400, width=6.7, height=6.7, units="in")
+##############################################################################
+################  		Figure left panel c  	       ###############
+##############################################################################
 
+png("~/envsMeduAnalysis/n9498Analysis/psycho_envs.png", res=400, width=6.7, height=6.7, units="in")
 
 ggplot(data=outputbifactor, aes(x=names, y=t.envs)) +
   geom_bar(aes(fill=names), stat="identity", color="black")+
@@ -114,6 +147,11 @@ ggplot(data=outputbifactor, aes(x=names, y=t.envs)) +
   
 dev.off()
 
+##############################################################################
+################  Corrtrait figure; not used in analysis       ###############
+##############################################################################
+
+
 png("~/envsMeduAnalysis/n9498Analysis/corrtrait_envs.png", res=400, width=6.7, height=6.7, units="in")
 
 ggplot(data=outputcorrtraits, aes(x=names, y=t.envs)) +
@@ -127,6 +165,14 @@ ggplot(data=outputcorrtraits, aes(x=names, y=t.envs)) +
 
 dev.off()
 
+
+##############################################################################
+################  Creating diagnosis accross sample  	       ###############
+##############################################################################
+
+
+#Create diagnosis accross sample
+#This was borrowed from Toni
 diag <- read.csv("/data/joy/BBL/studies/pnc/n9498_dataFreeze/clinical/n9498_goassess_psych_summary_vars_20131014.csv")
 diagPS <- read.csv("/data/joy/BBL/studies/pnc/n9498_dataFreeze/clinical/n9498_diagnosis_dxpmr_20161014.csv")
 
@@ -198,13 +244,20 @@ diag$Soc[which(diag$smry_soc==4)] <- 1
 diag$Sph <- NA
 diag$Sph[which(diag$smry_phb==4)] <- 1
 
-
 #Typically Developing
 dxNames <- c("bblid","Add","Agr","Ano","Bul","Con","Gad","Man","Mdd","Ocd","Odd","Pan","Ps","Ptd","Sep","Soc","Sph")
 dxDf <- data.matrix(diag[,dxNames])
 diag$totDx <- rowSums(dxDf[,2:17], na.rm=TRUE) #This is how many people have how many diagnoses: sum(totDx==0):414, sum(totDx==1):307, sum(totDx>=2):638
 diag$Td <- NA
 diag$Td[which(diag$totDx==0)] <- 1
+
+
+##############################################################################
+################  Nonregressed figure; not used in analysis    ###############
+##############################################################################
+
+
+
 
 library(psych)
 
@@ -246,6 +299,12 @@ ggplot(t, aes(x=group1, y=mean)) +
 dev.off()
 
 
+##############################################################################
+################  Figure A  				       ###############
+##############################################################################
+
+#Calculate regressed environment for each diagnosis group
+
 model <- gam(envSES ~ s(ageAtClinicalAssess1, k=4) + sex + race2, data=demo)
 demo$resienvSES <- model$residuals
 
@@ -280,6 +339,14 @@ ggplot(t, aes(x=group1, y=mean)) +
 
 dev.off()
 
+
+##############################################################################
+################Non regressed envs vs psychopathology	       ###############
+################     (IGNORE this is in the figure)  	       ###############
+##############################################################################
+
+
+
 model <- gam(overall_psychopathology_4factorv2 ~ s(ageAtClinicalAssess1, k=4) + sex + race2, data=demo)
 demo$resiOverall <- model$residuals
 
@@ -298,6 +365,13 @@ ggplot(demo, aes(x=overall_psychopathology_4factorv2, y=envSES)) +
   theme_classic() +
   theme(text = element_text(size=24), plot.title = element_text(hjust = 0.5))
 
+##############################################################################
+################ Hex plot of overall vs. environment	       ###############
+################     (IGNORE this is in the figure)  	       ###############
+##############################################################################
+
+
+
 png("~/envsMeduAnalysis/n9498Analysis/overall_environment_regressed_hex.png", res=400, width=6.7, height=6.7, units="in")
 
 
@@ -315,6 +389,13 @@ ggplot(demo, aes(x=resiOverall, y=resienvSES)) +
 dev.off()
 
 
+##############################################################################
+################ Hex plot of overall vs. environment	       ###############
+################     (IGNORE this is in the figure)  	       ###############
+##############################################################################
+
+
+
 png("~/envsMeduAnalysis/n9498Analysis/overall_environment_regressed.png", res=400, width=6.7, height=6.7, units="in")
 
 ggplot(demo, aes(x=resiOverall, y=resienvSES)) +
@@ -327,6 +408,13 @@ ggplot(demo, aes(x=resiOverall, y=resienvSES)) +
   scale_colour_gradient(low = "#99FF99", high = "#003300") + guides(color=FALSE)
 
 dev.off()
+
+
+##############################################################################
+##########    Plot of effect of residualized envs and corrtraits   ###########
+################     (IGNORE this is in the figure)  	       ###############
+##############################################################################
+
 
 path <- "/data/joy/BBL/studies/pnc/n9498_dataFreeze//clinical//n9498_goassess_itemwise_corrtraits_scores_20161219.csv"
 corr <- read.csv(path)

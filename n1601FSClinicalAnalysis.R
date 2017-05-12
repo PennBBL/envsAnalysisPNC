@@ -86,6 +86,15 @@ model <- "~ s(ageAtScan1, k=4) + sex + race2 + averageManualRating"
 path <- "/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_freesurferSurfaceArea_20161220.csv"
 outputarea <- FunctionAnalyze(model, path, cores)
 
+path <- "/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_freesurferCt_20161220.csv"
+outputct <- FunctionAnalyze(model, path, cores)
+
+path <- "/data/joy/BBL/studies/pnc/n1601_dataFreeze/neuroimaging/t1struct/n1601_freesurferVol_20161220.csv"
+outputVol <- FunctionAnalyze(model, path, cores)
+
+
+
+
 path <- "/data/joy/BBL/studies/pnc/n1601_dataFreeze/clinical//n1601_goassess_itemwise_bifactor_scores_20161219.csv"
 outputbifactor <- FunctionAnalyze(model, path, cores)
 
