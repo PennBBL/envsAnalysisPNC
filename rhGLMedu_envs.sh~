@@ -1,0 +1,82 @@
+# LB 20170717
+# This file is used to generate the rh GLM w/ parental education for pncEnvs project
+
+#! /bin/bash
+meas=area
+hemi=rh
+template=fsaverage5
+fwhm=20
+analysis=rhGLMedu # other example: rhGLMses
+lm='"~ age + ageSqrd + sex + race + averageManualRating + pedu' # used as argument for R script. since it's a string it must be in quotes (twice). add envsSES variable for other analyses
+data=/data/joy/BBL/projects/envsMeduAnalysis/fs_analysis/rhGLMedu_ses/n1375_demos_20170717.csv
+scriptsdir=/data/joy/BBL/projects/envsMeduAnalysis/fs_analysis/rhGLMedu_ses/scripts
+logdir=$scriptsdir/logs
+
+rm -f $logdir/*
+export SUBJECTS_DIR=/data/joy/BBL/studies/pnc/processedData/structural/freesurfer53
+
+# place where concatenated files will be stored
+homedir=/data/joy/BBL/projects/envsMeduAnalysis/fs_analysis/$analysis
+
+# place where output is stored
+outdir=$homedir
+
+# number and order of subjects
+n=$(cat $data | wc -l)
+n=$(echo "$n - 1" | bc)
+
+name=$(echo $lm | sed "s/~//g" | sed "s/\"//g" | sed "s/ //g" | sed "s/+/_/g" | sed "s/:/BY/g" | sed "s/1/mean/g" )
+echo $name
+model=n${n}.$meas.$name.$template
+
+## where design files are stored
+mkdir $outdir/designs/$model
+wd=$outdir/designs/$model
+
+# where model results are written
+${hemi}outdir=$outdir/$hemi.$model
+mkdir ${hemi}outdir 2>/dev/null
+
+# this creates a design matrix and contrast matrices
+Rvar=$(which R)
+$Rvar --slave --file=$scriptsdir/FS_GLM_designMatrix.R --args "$lm" "$data" "$wd"
+
+# this creates an image file to be analyzed. data are not smoothed at this point
+subjs=""
+for sub in $(cat $wd/subjlist.txt); do
+	subjs=$(echo $subjs --s $sub)
+done
+
+if [ ! -e "$homedir/$hemi.$meas.fwhm$fwhm.$template.n$n.mgh" ]; then
+	qsub -V -b y -q all.q -S /bin/bash -o $logdir -e $logdir mris_preproc $subjs --hemi $hemi --meas $meas --target $template --out $hemi.$meas.fwhm$fwhm.$template.n$n.mgh
+fi
+
+# stores this file as a log (Ryans idea).
+cp $scriptsdir/group_fs_analysis.sh $wd
+cp $data $wd
+
+# set the contrasts (created by design file)
+cons=""
+for i in $(ls $wd/contrast*.mat); do
+	cons=$(echo "$cons --C $i ")
+done
+
+# run the model
+if [ -e "$homedir/$hemi.$meas.fwhm$fwhm.$template.n$n.mgh" ]; then
+	mri_glmfit --glmdir $rhoutdir --y $homedir/$hemi.$meas.fwhm$fwhm.$template.n$n.mgh --X $wd/X.mat $cons --surf fsaverage5 rh --save-yhat
+
+	# cluster threshold at p<0.01 500 mm^2
+	for img in $(ls $rhoutdir/contrast*/sig.mgh); do
+		output=$(dirname $img)
+		mri_surfcluster --in $img --subject fsaverage5 --fdr 0.05 --hemi rh --ocn $output/cluster.id.p05fdr.mgh --o $output/cluster.sig.p05fdr.mgh --sum $output/cluster.sum.p05fdr.txt
+		mri_surfcluster --in $img --subject fsaverage5 --fdr 0.01 --hemi rh --ocn $output/cluster.id.p01fdr.mgh --o $output/cluster.sig.p01fdr.mgh --sum $output/cluster.sum.p01fdr.txt
+		mris_convert -c $output/cluster.id.p05fdr.mgh $SUBJECTS_DIR/fsaverage5/surf/rh.sphere $output/cluster.id.p05fdr.asc
+		mris_convert -c $output/cluster.id.p01fdr.mgh $SUBJECTS_DIR/fsaverage5/surf/rh.sphere $output/cluster.id.p01fdr.asc
+	done
+
+	# write cluster maps to csvs for plotting in R
+	# system(paste('mris_convert -c', cluster.rh.mgh, rh.avgsph, cluster.rh.asc ) )
+	mris_convert -c $rhoutdir/yhat.mgh $SUBJECTS_DIR/fsaverage5/surf/rh.sphere $rhoutdir/yhat.asc
+	mris_convert -c $rhoutdir/rvar.mgh $SUBJECTS_DIR/fsaverage5/surf/rh.sphere $rhoutdir/rvar.asc
+	cp $homedir/$hemi.$meas.fwhm$fwhm.$template.n$n.mgh  $rhoutdir
+fi
