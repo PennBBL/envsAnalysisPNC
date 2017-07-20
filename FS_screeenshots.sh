@@ -8,11 +8,9 @@ thresh=$2
 contrasts=$3
 image=cluster.sig.p05fdr.mgh # sig.mgh # s5000logp3.sig.masked.mgh # sig.mgh is the non cluster corrected map
 threshname=$(echo $thresh | tr "," "-")
-
-export SUBJECTS_DIR=/data/joy/BBL/studies/pnc/processedData/structural/freesurfer53
 mkdir $dir/pngs 2>/dev/null
 
-h=rh
+h=lh
 himg=$(ls $SUBJECTS_DIR/fsaverage5/surf/${h}.inflated)
 modelname=$(basename $dir)
 

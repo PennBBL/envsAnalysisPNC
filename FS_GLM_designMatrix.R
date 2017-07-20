@@ -1,15 +1,10 @@
-# LB 20170717
-## This file is use to create the design matrix 
-### Does not need to be changed
-
-# input variables
+# Input variables
 lin.mod<-commandArgs(T)[1]
 data<-read.csv(commandArgs(T)[2]) # data file with demographic stuff
 file=commandArgs(T)[3] # output name
 gmc=commandArgs(T)[4] # 1 or leave empty for gray matter covariate
 
-# this is important. removes quotes from linear model string.
-# quotes are need to get the variable into R as a string for some reason.
+# Remove the quotes from the linear model string
 lin.mod<-gsub('\\"', '', lin.mod)
 
 dir.create(file, showWarnings=FALSE)
@@ -21,10 +16,10 @@ write.table(paste(data$bblid, data$datexscanid, sep="/"), file.path(file, 'subjl
 X<-model.matrix( as.formula(lin.mod) , data=data)
 
 library(R.matlab)
-writeMat(file.path(file, 'X.mat'), X=X)  #matlab file for design matrix.
-cat(colnames(X), '\n', sep=' ', file=file.path(file, 'design_colnames.txt'))#this is for us, just so we can see what is what for contrasts
+writeMat(file.path(file, 'X.mat'), X=X)  # matlab file for design matrix
+cat(colnames(X), '\n', sep=' ', file=file.path(file, 'design_colnames.txt')) # this is for us, just so we can see what is what for contrasts
 
-# for contrasts
+# Contrasts
 cnames<-colnames(X)
 vars<-gsub(" ", "", gsub('\\~', '', unlist(strsplit(lin.mod, split='\\+'))))
 print(cnames)
@@ -46,7 +41,7 @@ for(curvar in vars){
 						})
 				))
 	
-	# for all pairwise contrasts-- will do contrasts of all factors-- only relevant for factors
+	# For pairwise contrasts -- will do contrasts of all factors-- only relevant for factors
 	cmat2<-rbind(matrix(0, ncol=ncol(X), nrow=length(cols)), cmat[-1,])
 	cmat2[cbind(1:length(cols),cols)]<-1
 	rows2sum<-length(cols)+1:(length(cols)-1)
@@ -70,5 +65,4 @@ for(curvar in vars){
 	filet<-file.path(file, paste('contrast',which(vars %in% curvar) ,'.mat', sep=''))
 	write.table(cmat, file=filet, row.names=FALSE, col.names=FALSE, quote=FALSE, append=FALSE)
 	
-	#cat('\n', sep='', file=filet, append=TRUE)
 } 

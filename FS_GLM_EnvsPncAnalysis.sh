@@ -1,23 +1,22 @@
-# LB 20170717
-# Use this script to generate GLM for specific parameters
-
 #! /bin/bash
-meas=area
-hemi=rh
-template=fsaverage5
-fwhm=20
-analysis=rhGLMedu # other example: rhGLMses
-lm='"~ age + ageSqrd + sex + race + averageManualRating + pedu"' # This is used as argument for R script. Must be in quotes twice because it is a string.
-data=/data/joy/BBL/projects/envsMeduAnalysis/fs_analysis/rhGLMedu_ses/n1375_demos_20170717.csv
-scriptsdir=/data/joy/BBL/projects/envsMeduAnalysis/fs_analysis/rhGLMedu_ses/scripts
-logdir=$scriptsdir/logs
 
+# Set parameters
+meas=area
+fwhm=20
+template=fsaverage5
+
+# Create model: for lm you have to write all terms of interaction, e.g. age + sex + age:sex
+lm='"~ age + ageSqrd + sex + race + averageManualRating + pedu"' # used as argument for R script. since it's a string it must be in quotes (twice).
+
+# Set paths
+data=/data/joy/BBL/projects/envsMeduAnalysis/fs_analysis/freesurfer53/n1375_envs_demos.csv
+scriptsdir=/data/joy/BBL/projects/envsMeduAnalysis/fs_analysis/freesurfer53
+logdir=$scriptsdir/logs
 rm -f $logdir/*
 export SUBJECTS_DIR=/data/joy/BBL/studies/pnc/processedData/structural/freesurfer53
 
 # Place where concatenated files will be stored
-homedir=/data/joy/BBL/projects/envsMeduAnalysis/fs_analysis/$analysis
-
+homedir=/data/joy/BBL/projects/envsMeduAnalysis/fs_analysis/freesurfer53
 # Place where output is stored
 outdir=$homedir
 
@@ -27,56 +26,52 @@ n=$(echo "$n - 1" | bc)
 
 name=$(echo $lm | sed "s/~//g" | sed "s/\"//g" | sed "s/ //g" | sed "s/+/_/g" | sed "s/:/BY/g" | sed "s/1/mean/g" )
 echo $name
-model=n${n}.$meas.$name.$template
+model=n${n}.$meas.$name.fwhm$fwhm.$template
 
-# Place where design files are stored
-mkdir $outdir/designs/$model
+# Where design files are stored
 wd=$outdir/designs/$model
 
-# Place where model results are written
-${hemi}outdir=$outdir/$hemi.$model
-mkdir ${hemi}outdir 2>/dev/null
+# Where model results are written
+lhoutdir=$outdir/lh.$model
+mkdir $lhoutdir 2>/dev/null
 
-# Create a design matrix and contrast matrices
+# Create design matrix and contrast matrices
 Rvar=$(which R)
-$Rvar --slave --file=$scriptsdir/FS_GLM_designMatrix.R --args "$lm" "$data" "$wd"
+$Rvar --slave --file=$scriptsdir/design_matrix.R --args "$lm" "$data" "$wd"
 
-# Create an image file to be analyzed
+# Create concatenated surface image for sample
+## create subject call for mris_preproc command
 subjs=""
 for sub in $(cat $wd/subjlist.txt); do
 	subjs=$(echo $subjs --s $sub)
 done
 
-## Submit subject list to create the final surface file
-if [ ! -e "$homedir/$hemi.$meas.fwhm$fwhm.$template.n$n.mgh" ]; then
-	qsub -V -b y -q all.q -S /bin/bash -o $logdir -e $logdir mris_preproc $subjs --hemi $hemi --meas $meas --target $template --out $hemi.$meas.fwhm$fwhm.$template.n$n.mgh
+## create image
+if [ ! -e "$homedir/lh.$meas.fwhm$fwhm.$template.n$n.mgh" ]; then
+	qsub -V -b y -q all.q -S /bin/bash -o $logdir -e $logdir mris_preproc $subjs --hemi lh --meas $meas --target $template --out $homedir/lh.$meas.fwhm$fwhm.$template.n$n.mgh
 fi
 
+
 # Store this file as a log
-cp $scriptsdir/FS_GLM_EnvsPncAnalysis.sh $wd
+cp $scriptsdir/group_fs_analysis.sh $wd
 cp $data $wd
 
-# Set the contrasts (created by design file)
 cons=""
 for i in $(ls $wd/contrast*.mat); do
 	cons=$(echo "$cons --C $i ")
 done
 
 # Run the model
-if [ -e "$homedir/$hemi.$meas.fwhm$fwhm.$template.n$n.mgh" ]; then
-	mri_glmfit --glmdir $rhoutdir --y $homedir/$hemi.$meas.fwhm$fwhm.$template.n$n.mgh --X $wd/X.mat $cons --surf fsaverage5 rh --save-yhat
-
-	# Cluster threshold at p<0.01 and p<0.05 500 mm^2
-	for img in $(ls $rhoutdir/contrast*/sig.mgh); do
+if [ -e "$homedir/lh.$meas.fwhm$fwhm.$template.n$n.mgh" ]; then
+	mri_glmfit --glmdir $lhoutdir --y $homedir/lh.$meas.fwhm$fwhm.$template.n$n.mgh  --X $wd/X.mat $cons --surf fsaverage5 lh --fwhm $fwhm --save-yhat
+	for img in $(ls $lhoutdir/contrast*/sig.mgh); do
 		output=$(dirname $img)
-		mri_surfcluster --in $img --subject fsaverage5 --fdr 0.05 --hemi rh --ocn $output/cluster.id.p05fdr.mgh --o $output/cluster.sig.p05fdr.mgh --sum $output/cluster.sum.p05fdr.txt
-		mri_surfcluster --in $img --subject fsaverage5 --fdr 0.01 --hemi rh --ocn $output/cluster.id.p01fdr.mgh --o $output/cluster.sig.p01fdr.mgh --sum $output/cluster.sum.p01fdr.txt
-		mris_convert -c $output/cluster.id.p05fdr.mgh $SUBJECTS_DIR/fsaverage5/surf/rh.sphere $output/cluster.id.p05fdr.asc
-		mris_convert -c $output/cluster.id.p01fdr.mgh $SUBJECTS_DIR/fsaverage5/surf/rh.sphere $output/cluster.id.p01fdr.asc
+		mri_surfcluster --in $img --subject fsaverage5 --fdr 0.05 --hemi lh --ocn $output/cluster.id.p05fdr.mgh --o $output/cluster.sig.p05fdr.mgh --sum $output/cluster.sum.p05fdr.txt
+		mri_surfcluster --in $img --subject fsaverage5 --fdr 0.01 --hemi lh --ocn $output/cluster.id.p01fdr.mgh --o $output/cluster.sig.p01fdr.mgh --sum $output/cluster.sum.p01fdr.txt
+		mris_convert -c $output/cluster.id.p05fdr.mgh $SUBJECTS_DIR/fsaverage5/surf/lh.sphere $output/cluster.id.p05fdr.asc
+		mris_convert -c $output/cluster.id.p01fdr.mgh $SUBJECTS_DIR/fsaverage5/surf/lh.sphere $output/cluster.id.p01fdr.asc
 	done
-
-	# Write cluster maps to csvs for plotting in R
-	mris_convert -c $rhoutdir/yhat.mgh $SUBJECTS_DIR/fsaverage5/surf/rh.sphere $rhoutdir/yhat.asc
-	mris_convert -c $rhoutdir/rvar.mgh $SUBJECTS_DIR/fsaverage5/surf/rh.sphere $rhoutdir/rvar.asc
-	cp $homedir/$hemi.$meas.fwhm$fwhm.$template.n$n.mgh  $rhoutdir
+	mris_convert -c $lhoutdir/yhat.mgh $SUBJECTS_DIR/fsaverage5/surf/lh.sphere $lhoutdir/yhat.asc
+	mris_convert -c $lhoutdir/rvar.mgh $SUBJECTS_DIR/fsaverage5/surf/lh.sphere $lhoutdir/rvar.asc
+	cp $homedir/lh.$meas.fwhm$fwhm.$template.n$n.mgh  $lhoutdir
 fi
